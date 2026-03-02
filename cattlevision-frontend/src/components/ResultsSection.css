@@ -1,0 +1,296 @@
+/* ============================================================
+   RESULTS SECTION WITH GLASSMORPHISM
+   ============================================================ */
+
+.results-card {
+  background: var(--surface);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  transition: all 0.4s ease;
+  animation: slideUp 0.6s ease-out;
+}
+
+.results-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(46, 184, 92, 0.4);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   SUCCESS BADGE
+   ============================================================ */
+.success-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, rgba(46, 184, 92, 0.15), rgba(26, 122, 53, 0.1));
+  border: 1px solid rgba(46, 184, 92, 0.3);
+  color: var(--accent);
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0 auto 1.5rem;
+  width: 100%;
+  animation: fadeUp 0.5s ease-out;
+}
+
+.badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  color: white;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(26, 122, 53, 0.2);
+}
+
+/* ============================================================
+   RESULT CONTENT
+   ============================================================ */
+.result-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ============================================================
+   BREED SECTION
+   ============================================================ */
+.breed-section {
+  text-align: center;
+  animation: fadeUp 0.6s ease-out 0.1s both;
+}
+
+.result-emoji {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.breed-name {
+  font-size: clamp(1.5rem, 6vw, 2.5rem);
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.breed-origin {
+  font-size: 0.9rem;
+  color: var(--text2);
+  margin: 0.75rem 0 0 0;
+  font-weight: 300;
+}
+
+/* ============================================================
+   CONFIDENCE SECTION
+   ============================================================ */
+.confidence-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: fadeUp 0.6s ease-out 0.2s both;
+}
+
+.confidence-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.confidence-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--text);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.confidence-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background-color: var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent3));
+  border-radius: 10px;
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 12px rgba(46, 184, 92, 0.4);
+}
+
+.confidence-desc {
+  font-size: 0.8rem;
+  color: var(--text2);
+  margin: 0.5rem 0 0 0;
+  font-style: italic;
+}
+
+/* ============================================================
+   BREED HIGHLIGHTS
+   ============================================================ */
+.breed-highlights {
+  background: linear-gradient(135deg, rgba(46, 184, 92, 0.08), rgba(26, 122, 53, 0.05));
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  padding: 1.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  animation: fadeUp 0.6s ease-out 0.3s both;
+}
+
+.highlights-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--accent);
+  margin: 0 0 1rem 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 1rem;
+}
+
+.highlight-item {
+  background: var(--surface2);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.highlight-item:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  background: var(--surface2);
+}
+
+.highlight-icon {
+  font-size: 1.75rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.highlight-item p {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.4;
+  font-weight: 500;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ============================================================
+   RESPONSIVE VARIANTS
+   ============================================================ */
+@media (max-width: 768px) {
+  .results-card {
+    padding: 1.5rem;
+  }
+
+  .breed-name {
+    font-size: 1.75rem;
+  }
+
+  .confidence-value {
+    font-size: 1.5rem;
+  }
+
+  .result-emoji {
+    font-size: 3rem;
+  }
+
+  .breed-highlights {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .results-card {
+    padding: 1rem;
+  }
+
+  .success-badge {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .badge-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+  }
+
+  .breed-name {
+    font-size: 1.5rem;
+  }
+
+  .confidence-label {
+    font-size: 0.85rem;
+  }
+
+  .confidence-value {
+    font-size: 1.25rem;
+  }
+
+  .result-emoji {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .highlights-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .highlight-item {
+    padding: 0.75rem;
+  }
+
+  .highlight-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+  }
+}
