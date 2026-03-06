@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design System */
+:root {
+  --forest: #1a2e1a;
+  --amber: #d4852a;
+  --cream: #f5f0e8;
+  --bark: #3d2b1f;
+  --sage: #4a7c59;
+}
+
+/* Global Styles */
+* {
+  @apply transition-colors duration-200;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-forest text-cream font-sans;
+  background-image: 
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-forest;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-amber rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-amber/80;
+}
+
+/* Selection Highlight */
+::selection {
+  @apply bg-amber text-forest;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', serif;
+  @apply font-bold;
+}
+
+body, button, input, textarea, select {
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Utility Classes */
+.animated-pulse {
+  @apply animate-pulse;
+}
+
+.badge {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.badge-amber {
+  @apply bg-amber/20 text-amber;
+}
+
+.badge-sage {
+  @apply bg-sage/20 text-sage;
+}
+
+.badge-red {
+  @apply bg-red-500/20 text-red-400;
+}
+
+.card {
+  @apply bg-bark/50 backdrop-blur-sm rounded-lg border border-amber/10 p-6;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer;
+}
+
+.btn-primary {
+  @apply bg-amber text-forest hover:bg-amber/90 active:scale-95;
+}
+
+.btn-secondary {
+  @apply bg-bark/50 border border-amber/30 text-cream hover:bg-bark/70;
+}
+
+.btn-ghost {
+  @apply text-cream hover:text-amber hover:bg-amber/10;
+}
+
+.input {
+  @apply w-full px-4 py-2 rounded-lg bg-bark/50 border border-amber/20 text-cream placeholder-cream/40 focus:outline-none focus:border-amber/60 focus:ring-1 focus:ring-amber/30;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-in {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.5s ease-out;
+}
+
