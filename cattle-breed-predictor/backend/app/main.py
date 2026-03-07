@@ -57,7 +57,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=[settings.ALLOWED_ORIGINS],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,6 +91,12 @@ async def health_check():
     return {"status": "ok"}
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.on_event("startup")
+async def startup_event():
+    """Log all registered routes on startup."""
+    print("\n📋 Registered routes:")
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            methods = list(route.methods) if route.methods else ["GET"]
+            print(f"   {methods} {route.path}")
+    print()

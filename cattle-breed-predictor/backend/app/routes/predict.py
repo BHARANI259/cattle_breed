@@ -76,7 +76,7 @@ async def predict(
         logger.info(f"✓ LLM task queued for breed: {inference_result['predicted_breed']}")
         
         # Step 7: Return response with file URLs (without waiting for LLM)
-        return PredictionResponse(
+        response_data = PredictionResponse(
             id=prediction.id,
             image_filename=prediction.image_filename,
             image_url=f"/uploads/originals/{filename}",
@@ -87,6 +87,8 @@ async def predict(
             bounding_boxes=inference_result["bounding_boxes"],
             created_at=prediction.created_at,
         )
+        print(f"📤 Returning prediction response: {response_data.dict()}")
+        return response_data
         
     except HTTPException:
         raise

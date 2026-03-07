@@ -75,6 +75,9 @@ function PredictionResult({ data, onViewBreedInfo }) {
     }))
 
   const handleViewBreedInfo = async () => {
+    console.log('handleViewBreedInfo called')
+    console.log('breedInfo state:', breedInfo)
+    console.log('showBreedInfo state:', showBreedInfo)
     if (breedInfo) {
       setShowBreedInfo(!showBreedInfo)
       return
@@ -88,8 +91,10 @@ function PredictionResult({ data, onViewBreedInfo }) {
         data.predicted_breed,
         data.confidence_score
       )
+      console.log('Fetched breed info:', response.data)
       setBreedInfo(response.data.breed_info)
       setShowBreedInfo(true)
+      setIsLoadingBreedInfo(false)
     } catch (err) {
       setError(err.message || 'Failed to fetch breed information')
       setIsLoadingBreedInfo(false)
@@ -110,6 +115,9 @@ function PredictionResult({ data, onViewBreedInfo }) {
         data.confidence_score
       )
       setBreedInfo(response.data.breed_info)
+      // ensure card is shown after refresh
+      setShowBreedInfo(true)
+      setIsLoadingBreedInfo(false)
     } catch (err) {
       setError(err.message || 'Failed to refresh breed information')
       setIsLoadingBreedInfo(false)
@@ -122,7 +130,7 @@ function PredictionResult({ data, onViewBreedInfo }) {
         {/* Left: Annotated Image */}
         <div className="card overflow-hidden">
           <img
-            src={data.annotated_image_url}
+            src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${data.annotated_image_url}`}
             alt="Annotated prediction"
             className="w-full rounded-lg"
           />
@@ -191,11 +199,13 @@ function PredictionResult({ data, onViewBreedInfo }) {
       </div>
 
       {/* Breed Info Card */}
-      <BreedInfoCard
-        breedInfo={breedInfo}
-        isLoading={isLoadingBreedInfo}
-        onRefresh={handleRefreshBreedInfo}
-      />
+      {(showBreedInfo || isLoadingBreedInfo) && (
+        <BreedInfoCard
+          breedInfo={breedInfo}
+          isLoading={isLoadingBreedInfo}
+          onRefresh={handleRefreshBreedInfo}
+        />
+      )}
 
       {/* Error Toast */}
       {error && (

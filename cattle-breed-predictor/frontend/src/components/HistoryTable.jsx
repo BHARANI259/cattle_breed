@@ -69,7 +69,7 @@ function HistoryTable({ predictions, isLoading, onView, onDelete }) {
               <td className="py-3 px-4 text-cream/70">{idx + 1}</td>
               <td className="py-3 px-4">
                 <img
-                  src={pred.image_url}
+                  src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${pred.image_url}`}
                   alt={pred.predicted_breed}
                   loading="lazy"
                   className="w-12 h-12 rounded object-cover bg-bark/50"

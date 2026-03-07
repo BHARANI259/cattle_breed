@@ -1,12 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { AlertCircle, RotateCcw, Check, X } from 'lucide-react'
 import LoadingSkeleton from './LoadingSkeleton'
 
 function BreedInfoCard({ breedInfo, isLoading, onRefresh }) {
-  const [expanded, setExpanded] = useState(false)
-
-  if (!expanded) return null
-
+  // Always show when data is available (no expansion logic needed)
+  
   if (isLoading) {
     return (
       <div className="card mt-8 fade-in-up">
@@ -72,34 +70,18 @@ function BreedInfoCard({ breedInfo, isLoading, onRefresh }) {
       <section className="space-y-3">
         <h3 className="font-bold text-amber">Physical Characteristics</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {breedInfo.characteristics?.average_weight_kg && (
+          {breedInfo.characteristics?.avg_weight_kg && (
             <>
               <div className="bg-amber/10 rounded-lg p-3">
                 <p className="text-cream/60 text-xs uppercase">Weight (Male)</p>
                 <p className="text-cream font-bold">
-                  {breedInfo.characteristics.average_weight_kg.male} kg
+                  {breedInfo.characteristics.avg_weight_kg.male} kg
                 </p>
               </div>
               <div className="bg-amber/10 rounded-lg p-3">
                 <p className="text-cream/60 text-xs uppercase">Weight (Female)</p>
                 <p className="text-cream font-bold">
-                  {breedInfo.characteristics.average_weight_kg.female} kg
-                </p>
-              </div>
-            </>
-          )}
-          {breedInfo.characteristics?.height_cm && (
-            <>
-              <div className="bg-amber/10 rounded-lg p-3">
-                <p className="text-cream/60 text-xs uppercase">Height (Male)</p>
-                <p className="text-cream font-bold">
-                  {breedInfo.characteristics.height_cm.male} cm
-                </p>
-              </div>
-              <div className="bg-amber/10 rounded-lg p-3">
-                <p className="text-cream/60 text-xs uppercase">Height (Female)</p>
-                <p className="text-cream font-bold">
-                  {breedInfo.characteristics.height_cm.female} cm
+                  {breedInfo.characteristics.avg_weight_kg.female} kg
                 </p>
               </div>
             </>
@@ -155,22 +137,14 @@ function BreedInfoCard({ breedInfo, isLoading, onRefresh }) {
       </section>
 
       {/* Milk Production */}
-      {breedInfo.milk_production && (breedInfo.milk_production.daily_liters || breedInfo.milk_production.fat_percentage) && (
+      {breedInfo.milk_production_liters_per_day && (
         <section className="bg-bark/50 rounded-lg p-4 border border-amber/20">
           <h3 className="font-bold text-amber mb-3">Milk Production</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-cream/60 text-sm">Daily Yield</p>
-              <p className="text-cream font-bold">
-                {breedInfo.milk_production.daily_liters} L
-              </p>
-            </div>
-            <div>
-              <p className="text-cream/60 text-sm">Fat Content</p>
-              <p className="text-cream font-bold">
-                {breedInfo.milk_production.fat_percentage}%
-              </p>
-            </div>
+          <div>
+            <p className="text-cream/60 text-sm">Daily Yield</p>
+            <p className="text-cream font-bold">
+              {breedInfo.milk_production_liters_per_day} L/day
+            </p>
           </div>
         </section>
       )}
@@ -212,24 +186,10 @@ function BreedInfoCard({ breedInfo, isLoading, onRefresh }) {
         )}
       </section>
 
-      {/* Health Issues */}
-      {breedInfo.common_health_issues && breedInfo.common_health_issues.length > 0 && (
-        <section className="bg-red-900/20 border border-red-700/50 rounded-lg p-4 space-y-2">
-          <h4 className="font-bold text-red-400">Common Health Issues</h4>
-          <ul className="space-y-1">
-            {breedInfo.common_health_issues.map((issue, i) => (
-              <li key={i} className="text-cream/80 text-sm">
-                • {issue}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {/* Fun Fact */}
       {breedInfo.fun_fact && (
-        <section className="border-l-4 border-amber bg-amber/5 rounded-r-lg p-4 italic text-cream/80">
-          💡 {breedInfo.fun_fact}
+        <section className="bg-sage/10 rounded-lg p-4 border border-sage/30 italic">
+          <p className="text-cream/90">💡 {breedInfo.fun_fact}</p>
         </section>
       )}
     </div>

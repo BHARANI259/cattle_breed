@@ -1,7 +1,11 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from 'recharts'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer as AreaResponsive } from 'recharts'
+import { AreaChart, Area,
+    XAxis, YAxis,
+    CartesianGrid,
+    Tooltip as ChartTooltip
+     } from 'recharts'
 import { fetchStats, fetchTimeline } from '../api/axiosClient'
 import StatCard from '../components/StatCard'
 import { TrendingUp, Target, Activity, Calendar } from 'lucide-react'
@@ -118,33 +122,35 @@ function Dashboard() {
           <div className="card">
             <h2 className="text-xl font-bold text-cream mb-4">Predictions Over Time</h2>
             {timeline.length > 0 ? (
-              <AreaResponsive width="100%" height={300} data={timeline}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(212, 133, 42, 0.2)" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#f5f0e8"
-                  tick={{ fontSize: 12 }}
-                  style={{ color: '#f5f0e8' }}
-                />
-                <YAxis stroke="#f5f0e8" tick={{ fontSize: 12 }} />
-                <ChartTooltip
-                  contentStyle={{
-                    backgroundColor: '#3d2b1f',
-                    border: '1px solid rgba(212, 133, 42, 0.5)',
-                    borderRadius: '0.5rem',
-                  }}
-                  labelStyle={{ color: '#f5f0e8' }}
-                  formatter={(value) => [`${value} predictions`, 'Count']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#d4852a"
-                  fill="#d4852a"
-                  fillOpacity={0.3}
-                  isAnimationActive={true}
-                />
-              </AreaResponsive>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={timeline}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(212, 133, 42, 0.2)" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#f5f0e8"
+                    tick={{ fontSize: 12 }}
+                    style={{ color: '#f5f0e8' }}
+                  />
+                  <YAxis stroke="#f5f0e8" tick={{ fontSize: 12 }} />
+                  <ChartTooltip
+                    contentStyle={{
+                      backgroundColor: '#3d2b1f',
+                      border: '1px solid rgba(212, 133, 42, 0.5)',
+                      borderRadius: '0.5rem',
+                    }}
+                    labelStyle={{ color: '#f5f0e8' }}
+                    formatter={(value) => [`${value} predictions`, 'Count']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#d4852a"
+                    fill="#d4852a"
+                    fillOpacity={0.3}
+                    isAnimationActive={true}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             ) : (
               <div className="h-80 flex items-center justify-center text-cream/60">
                 No data available

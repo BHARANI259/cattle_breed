@@ -1,138 +1,108 @@
-import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from uuid import UUID
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models import BreedCache, Prediction
-from app.services import llm_service
+from app.config import settings
+from app.database import AsyncSessionLocal
+from app.models.prediction import Prediction, BreedCache
+from app.services.llm_service import get_breed_info
+from app.schemas.prediction import BreedInfoResponse, BreedInfoRequest
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(
-    prefix="/api/breed-info",
-    tags=["llm"],
-)
+router = APIRouter(prefix="/api", tags=["LLM"])
 
 
-class BreedInfoRequest(BaseModel):
-    """Request body for breed info endpoint."""
-    breed_name: str
-    confidence: float
-
-
-class BreedInfoResponse(BaseModel):
-    """Response for breed info endpoint."""
-    breed_info: dict
-    from_cache: bool
-
-
-class CacheEntry(BaseModel):
-    """Cache entry response."""
-    breed_name: str
-    cached_at: str
-
-
-@router.post("", response_model=BreedInfoResponse)
-async def get_breed_info(
-    request: BreedInfoRequest,
-    db: AsyncSession = Depends(get_db),
-):
+# ── POST /api/breed-info ─────────────────────────────────────
+@router.post("/breed-info", response_model=BreedInfoResponse)
+async def fetch_breed_info(request: BreedInfoRequest):
     """
-    Get breed information (cached or from LLM).
-    
-    Returns:
-        - breed_info: dict with full breed details
-        - from_cache: bool indicating if result came from cache
+    Fetch breed information from Ollama LLM (with cache).
+    Optionally saves result to the predictions table if
+    prediction_id is provided.
     """
-    breed_name = request.breed_name
-    confidence = request.confidence
-    
-    # Get breed info (handles caching internally)
-    breed_info = await llm_service.get_breed_info(breed_name, confidence)
-    
-    # Check if it came from cache (by querying cache table)
-    result = await db.execute(
-        select(BreedCache).where(BreedCache.breed_name == breed_name)
+    print(f"📥 /api/breed-info called → breed='{request.breed_name}' "
+          f"conf={request.confidence} id={request.prediction_id}")
+
+    if not request.breed_name or not request.breed_name.strip():
+        raise HTTPException(status_code=422, detail="breed_name is required")
+
+    result = await get_breed_info(
+        request.breed_name.strip(),
+        request.confidence
     )
-    cached_entry = result.scalar_one_or_none()
-    from_cache = cached_entry is not None
-    
-    return BreedInfoResponse(
-        breed_info=breed_info,
-        from_cache=from_cache,
-    )
+    # print result for debugging before returning
+    print(f"📣 LLM service returned: {result}")
 
-
-@router.get("/stream")
-async def stream_breed_info(
-    breed_name: str = Query(...),
-    confidence: float = Query(...),
-):
-    """
-    Stream breed information from LLM as Server-Sent Events.
-    
-    Query params:
-        - breed_name: Name of the breed
-        - confidence: Detection confidence (0-1)
-    """
-    async def event_generator():
-        async for chunk in llm_service.stream_breed_info(breed_name, confidence):
-            yield chunk
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        }
-    )
-
-
-@router.get("/cache", response_model=list[CacheEntry])
-async def get_cache(db: AsyncSession = Depends(get_db)):
-    """
-    Get all cached breed information.
-    
-    Returns: List of cached breeds with timestamp
-    """
-    result = await db.execute(select(BreedCache))
-    cached_breeds = result.scalars().all()
-    
-    return [
-        CacheEntry(
-            breed_name=b.breed_name,
-            cached_at=b.cached_at.isoformat(),
+    # Check if LLM returned an error dict
+    if "error" in result:
+        print(f"❌ LLM returned error: {result}")
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "Failed to generate breed info",
+                "reason": result.get("error"),
+                "breed": request.breed_name
+            }
         )
-        for b in cached_breeds
-    ]
+
+    # Optionally persist breed_info into the predictions row
+    if request.prediction_id:
+        try:
+            async with AsyncSessionLocal() as db:
+                await db.execute(
+                    update(Prediction)
+                    .where(Prediction.id == request.prediction_id)
+                    .values(
+                        breed_info=result,
+                        llm_model_used=settings.OLLAMA_MODEL
+                    )
+                )
+                await db.commit()
+                print(f"✅ breed_info saved to prediction {request.prediction_id}")
+        except Exception as e:
+            print(f"⚠️  Could not save breed_info to DB: {type(e).__name__}: {e}")
+
+    return {
+        "breed_info": result,
+        "model_used": settings.OLLAMA_MODEL,
+        "from_cache": False   # llm_service handles real cache flag
+    }
 
 
-@router.delete("/cache/{breed_name}")
-async def delete_cache_entry(
-    breed_name: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Delete a breed from cache to force LLM refresh.
-    
-    Path params:
-        - breed_name: Name of breed to remove from cache
-    """
-    result = await db.execute(
-        select(BreedCache).where(BreedCache.breed_name == breed_name)
-    )
-    cached = result.scalar_one_or_none()
-    
-    if not cached:
-        raise HTTPException(status_code=404, detail="Breed not found in cache")
-    
-    await db.delete(cached)
-    await db.commit()
-    
-    logger.info(f"✓ Deleted breed from cache: {breed_name}")
-    
-    return {"message": f"Deleted {breed_name} from cache"}
+# ── GET /api/breed-info/cache ────────────────────────────────
+@router.get("/breed-info/cache")
+async def get_breed_cache():
+    """Return all cached breed info entries."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(BreedCache))
+        rows = result.scalars().all()
+        return [
+            {
+                "breed_name": r.breed_name,
+                "cached_at": r.cached_at,
+                "has_data": bool(r.breed_info)
+            }
+            for r in rows
+        ]
+
+
+# ── DELETE /api/breed-info/cache/{breed_name} ────────────────
+@router.delete("/breed-info/cache/{breed_name}")
+async def clear_breed_cache(breed_name: str):
+    """Force refresh: delete a breed from cache."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(BreedCache).where(
+                BreedCache.breed_name == breed_name.strip().lower()
+            )
+        )
+        row = result.scalar_one_or_none()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No cache entry found for '{breed_name}'"
+            )
+        await db.delete(row)
+        await db.commit()
+    return {"message": f"Cache cleared for '{breed_name}'"}
+

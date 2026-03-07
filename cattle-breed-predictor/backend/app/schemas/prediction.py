@@ -73,3 +73,17 @@ class TimelineEntry(BaseModel):
     """Timeline entry for predictions by date."""
     date: str
     count: int
+
+
+class BreedInfoRequest(BaseModel):
+    """Request model for breed info endpoint."""
+    breed_name: str
+    confidence: float
+    prediction_id: UUID | None = None
+
+
+class BreedInfoResponse(BaseModel):
+    """Response model for breed info endpoint."""
+    breed_info: dict
+    model_used: str
+    from_cache: bool = False

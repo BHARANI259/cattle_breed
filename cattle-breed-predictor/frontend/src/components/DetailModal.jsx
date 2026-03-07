@@ -7,17 +7,32 @@ function DetailModal({ prediction, onClose, onDelete }) {
   const breedInfoMutation = useBreedInfo()
   const [showBreedInfo, setShowBreedInfo] = React.useState(false)
 
+  // Debug mutation state
+  React.useEffect(() => {
+    if (breedInfoMutation.data) {
+      console.log('✅ Breed info mutation succeeded:', breedInfoMutation.data)
+    }
+    if (breedInfoMutation.error) {
+      console.error('❌ Breed info mutation error:', breedInfoMutation.error)
+    }
+  }, [breedInfoMutation.data, breedInfoMutation.error])
+
   if (!prediction) return null
 
   const handleFetchBreedInfo = async () => {
     try {
-      await breedInfoMutation.mutateAsync({
+      console.log('🔄 Fetching breed info for:', prediction.predicted_breed)
+      const result = await breedInfoMutation.mutateAsync({
         breed_name: prediction.predicted_breed,
         confidence: prediction.confidence_score,
       })
+      console.log('✅ Mutation result:', result)
+      console.log('✅ Result type:', typeof result)
+      console.log('✅ Result keys:', result ? Object.keys(result) : 'null')
       setShowBreedInfo(true)
     } catch (error) {
-      console.error('Failed to fetch breed info:', error)
+      console.error('❌ Failed to fetch breed info:', error)
+      console.error('❌ Error response:', error.response?.data)
     }
   }
 
@@ -52,7 +67,7 @@ function DetailModal({ prediction, onClose, onDelete }) {
           {/* Image */}
           <div>
             <img
-              src={prediction.annotated_image_url}
+              src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${prediction.annotated_image_url}`}
               alt="Annotated"
               loading="lazy"
               className="w-full rounded-lg"
@@ -86,6 +101,16 @@ function DetailModal({ prediction, onClose, onDelete }) {
               isLoading={false}
               onRefresh={() => {}}
             />
+          ) : breedInfoMutation.error ? (
+            <div className="card border border-red-700/50 bg-red-900/20">
+              <p className="text-red-300">Error: {breedInfoMutation.error.message}</p>
+              <button
+                onClick={handleFetchBreedInfo}
+                className="btn btn-secondary mt-3 text-sm"
+              >
+                Try Again
+              </button>
+            </div>
           ) : (
             <button
               onClick={handleFetchBreedInfo}
