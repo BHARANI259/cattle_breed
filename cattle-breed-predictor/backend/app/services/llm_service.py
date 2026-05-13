@@ -1,9 +1,11 @@
-import httpx
 import json
 import logging
+import re
+import asyncio
+import time
 from datetime import datetime, timedelta
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.database import AsyncSessionLocal
@@ -11,31 +13,161 @@ from app.models import BreedCache
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an expert veterinarian and livestock specialist.
-When given a cattle breed name, respond ONLY with a valid JSON object.
-No markdown, no explanation, no code blocks. Just raw JSON."""
+# Initialize OpenAI client configured for Hugging Face Router
+client = AsyncOpenAI(
+    api_key=settings.HF_TOKEN,
+    base_url=settings.HF_ROUTER_BASE_URL,
+    timeout=settings.LLM_TIMEOUT_SECONDS,
+)
 
-USER_PROMPT_TEMPLATE = """Give information about cattle breed: "{breed_name}"
-detected with {confidence}% confidence.
+SYSTEM_PROMPT = """You are an expert veterinarian and livestock specialist with deep knowledge of cattle breeds.
+You MUST respond ONLY with valid JSON, no markdown, no code blocks, no explanations.
+If you cannot provide information, respond with an error JSON object.
+Always include all required fields in your response."""
 
-Respond ONLY with this JSON object, no markdown, no extra text:
+USER_PROMPT_TEMPLATE = """Generate detailed information about the cattle breed: "{breed_name}"
+which was detected with {confidence}% confidence.
+
+Respond ONLY with this exact JSON structure (all fields required):
 {{
-  "breed_name": string,
-  "origin": string,
-  "description": string,
-  "purpose": [list of strings],
-  "temperament": string,
+  "breed": "{breed_name}",
+  "confidence": "{confidence}%",
+  "origin": "country/region of origin",
+  "description": "detailed breed description (2-3 sentences)",
+  "purpose": ["primary", "secondary", "tertiary uses"],
+  "temperament": "personality traits and behavior",
   "characteristics": {{
     "avg_weight_kg": {{"male": number, "female": number}},
     "lifespan_years": number,
-    "coat_color": [list of strings]
+    "coat_color": ["color1", "color2"],
+    "height_cm": {{"male": number, "female": number}}
   }},
   "milk_production_liters_per_day": number,
-  "pros": [3 strings],
-  "cons": [2 strings],
-  "suitable_climate": [list of strings],
-  "fun_fact": string
+  "care_tips": [
+    "tip 1",
+    "tip 2",
+    "tip 3"
+  ],
+  "pros": ["advantage 1", "advantage 2", "advantage 3"],
+  "cons": ["disadvantage 1", "disadvantage 2"],
+  "suitable_climate": ["tropical", "temperate", "cold"],
+  "fun_fact": "an interesting fact about this breed"
 }}"""
+
+
+def extract_json_from_text(text: str) -> dict | None:
+    """
+    Extract and parse JSON from potentially malformed text.
+    Handles markdown fences, partial JSON, and other common issues.
+    
+    Args:
+        text: Raw text potentially containing JSON
+        
+    Returns:
+        Parsed JSON dict or None if extraction fails
+    """
+    if not text or not isinstance(text, str):
+        return None
+    
+    text = text.strip()
+    logger.debug(f"Attempting to extract JSON from {len(text)} chars")
+    
+    # Try direct JSON parsing first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        logger.debug("Direct JSON parsing failed, attempting extraction...")
+    
+    # Remove markdown code fences
+    if "```" in text:
+        logger.debug("Found markdown fences, extracting content...")
+        matches = re.findall(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
+        if matches:
+            for match in matches:
+                try:
+                    return json.loads(match.strip())
+                except json.JSONDecodeError:
+                    continue
+    
+    # Find JSON object boundaries
+    start_idx = text.find("{")
+    end_idx = text.rfind("}")
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        json_str = text[start_idx:end_idx + 1]
+        logger.debug(f"Extracted JSON substring: {len(json_str)} chars")
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse extracted JSON: {e}")
+            # Try to fix common JSON issues
+            json_str = json_str.replace('\n', '\\n').replace('\r', '\\r')
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
+    
+    return None
+
+
+async def call_llm_with_retries(
+    breed_name: str, confidence: float, retry_count: int = 0
+) -> str:
+    """
+    Call the LLM via OpenAI SDK with automatic retries.
+    
+    Args:
+        breed_name: Name of the cattle breed
+        confidence: Detection confidence (0-1)
+        retry_count: Current retry attempt number
+        
+    Returns:
+        LLM response text
+        
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    prompt = USER_PROMPT_TEMPLATE.format(
+        breed_name=breed_name,
+        confidence=int(confidence * 100)
+    )
+    
+    try:
+        logger.info(f"🤖 LLM Request #{retry_count + 1} for breed: {breed_name}")
+        logger.debug(f"  Model: {settings.MODEL_NAME}")
+        logger.debug(f"  Prompt length: {len(prompt)} chars")
+        
+        response = await client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,  # Lower temperature for more deterministic output
+            max_tokens=1500,
+            top_p=0.9,
+        )
+        
+        response_text = response.choices[0].message.content
+        logger.info(f"✅ LLM Response received ({len(response_text)} chars)")
+        logger.debug(f"Raw response preview: {response_text[:200]}")
+        
+        return response_text
+        
+    except Exception as e:
+        logger.warning(f"❌ LLM call failed (attempt {retry_count + 1}): {type(e).__name__}: {str(e)[:100]}")
+        
+        # Retry logic
+        if retry_count < settings.LLM_MAX_RETRIES - 1:
+            wait_time = settings.LLM_RETRY_DELAY_SECONDS * (2 ** retry_count)  # Exponential backoff
+            logger.info(f"⏳ Retrying in {wait_time}s...")
+            await asyncio.sleep(wait_time)
+            return await call_llm_with_retries(breed_name, confidence, retry_count + 1)
+        
+        # All retries exhausted
+        raise Exception(
+            f"LLM failed after {settings.LLM_MAX_RETRIES} attempts: {type(e).__name__}: {str(e)}"
+        )
 
 
 async def get_breed_info(breed_name: str, confidence: float) -> dict:
@@ -44,18 +176,19 @@ async def get_breed_info(breed_name: str, confidence: float) -> dict:
     
     Args:
         breed_name: Name of the cattle breed
-        confidence: Detection confidence (0-1)
+        confidence: Detection confidence (0-1), range [0, 1]
         
     Returns:
         dict with breed information or error details
     """
     
-    # Use lowercase for consistent cache key
+    # Normalize cache key
     cache_key = breed_name.strip().lower()
+    logger.info(f"📋 get_breed_info called: breed={breed_name}, confidence={confidence:.2f}")
     
     async with AsyncSessionLocal() as db:
-        # Check cache
-        print(f"🔍 Checking cache for breed: {breed_name}")
+        # === CACHE CHECK ===
+        logger.info(f"🔍 Checking cache for breed: {cache_key}")
         result = await db.execute(
             select(BreedCache).where(BreedCache.breed_name == cache_key)
         )
@@ -63,191 +196,68 @@ async def get_breed_info(breed_name: str, confidence: float) -> dict:
 
         if cached:
             age = datetime.utcnow() - cached.cached_at
-            if age < timedelta(days=7):
-                print(f"✅ Cache hit for breed: {breed_name}")
-                logger.info(f"✅ Cache hit for breed: {breed_name}")
+            cache_valid_days = 7
+            if age < timedelta(days=cache_valid_days):
+                logger.info(f"✅ Cache HIT for breed: {breed_name} (age: {age.days} days)")
+                print(f"✅ Cache HIT: {breed_name}")
                 return cached.breed_info
             else:
-                print(f"Cache expired for: {breed_name}, refreshing...")
-                logger.info(f"Cache expired for: {breed_name}, refreshing...")
+                logger.info(f"⏰ Cache EXPIRED for breed: {breed_name} (age: {age.days} days), refreshing...")
                 await db.delete(cached)
                 await db.commit()
-                cached = None  # ← CRITICAL FIX: reset to None after delete
 
-        # Call Ollama
+        # === LLM CALL ===
         try:
-            print(f"🤖 Calling Ollama for breed: {breed_name}")
-            logger.info(f"Calling Ollama for breed: {breed_name}")
-            logger.info(f"  URL   → {settings.OLLAMA_BASE_URL}/api/generate")
-            logger.info(f"  Model → '{settings.OLLAMA_MODEL}'")
-
-            prompt = USER_PROMPT_TEMPLATE.format(
-                breed_name=breed_name,
-                confidence=int(confidence * 100)
-            )
-
-            async with httpx.AsyncClient(timeout=180.0) as client:
-                response = await client.post(
-                    f"{settings.OLLAMA_BASE_URL}/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODEL,
-                        "prompt": prompt,
-                        "system": SYSTEM_PROMPT,
-                        "stream": False,
-                        "options": {
-                            "num_ctx": 512,      # smaller = faster for 1b model
-                            "num_predict": 450,  # tokens to generate
-                            "temperature": 0.1,  # lower = faster, less creative
-                            "num_thread": 8,     # use multiple threads
-                            "repeat_penalty": 1.1
-                        }
-                    }
-                )
-                response.raise_for_status()
-                data = response.json()
-                response_text = data.get("response", "")
-                print(f"📨 Raw LLM response ({len(response_text)} chars): {response_text[:150]}...")
-                logger.info(f"Raw LLM response preview: {response_text[:200]}")
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"Ollama HTTP {e.response.status_code} for '{breed_name}'. "
-                f"Is model pulled? Run: ollama pull {settings.OLLAMA_MODEL}"
-            )
-            return {"error": f"Ollama HTTP error {e.response.status_code}"}
-
-        except httpx.ConnectError:
-            logger.error(
-                f"Cannot connect to Ollama at {settings.OLLAMA_BASE_URL}. "
-                f"Run: ollama serve"
-            )
-            return {"error": "Ollama not running"}
-
-        except httpx.TimeoutException:
-            logger.error(f"Ollama timed out for breed: {breed_name}")
-            return {"error": "Ollama request timed out"}
-
+            logger.info(f"🔄 Calling LLM for breed: {breed_name}")
+            response_text = await call_llm_with_retries(breed_name, confidence)
         except Exception as e:
-            logger.error(
-                f"Unexpected Ollama error for {breed_name}: "
-                f"{type(e).__name__}: {e}"
-            )
-            return {"error": f"{type(e).__name__}: {str(e)}"}
+            error_msg = f"LLM API error: {str(e)[:200]}"
+            logger.error(f"❌ {error_msg}")
+            print(f"❌ LLM Error: {error_msg}")
+            return {"error": error_msg, "breed": breed_name}
 
-        # Parse JSON robustly
-        json_text = ""
+        # === JSON PARSING ===
         try:
-            json_text = response_text.strip()
-
-            # Strip markdown fences if model ignores system prompt
-            if "```" in json_text:
-                parts = json_text.split("```")
-                # Find the part that looks like JSON
-                for part in parts:
-                    part = part.strip()
-                    if part.startswith("json"):
-                        part = part[4:].strip()
-                    if part.startswith("{"):
-                        json_text = part
-                        break
-
-            # Find JSON boundaries
-            start = json_text.find("{")
-            end = json_text.rfind("}") + 1
-            if start == -1 or end == 0:
-                raise ValueError(
-                    f"No JSON object found in response. "
-                    f"Got: {response_text[:300]}"
-                )
-
-            json_text = json_text[start:end]
-            breed_info = json.loads(json_text)
-            print(f"✅ JSON parsed successfully for breed: {breed_name}")
-            logger.info(f"✅ JSON parsed for breed: {breed_name}")
-            # also show the parsed object
-            print(f"📦 Parsed breed_info object: {breed_info}")
-
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"❌ JSON parse FAILED for {breed_name}: {e}")
-            logger.error(f"JSON parse failed for {breed_name}: {e}")
-            logger.error(f"Raw text was: {response_text[:500]}")
+            logger.info("📝 Parsing LLM response as JSON...")
+            breed_info = extract_json_from_text(response_text)
+            
+            if not breed_info:
+                raise ValueError("Could not extract valid JSON from response")
+            
+            # Validate required fields
+            required_fields = ["breed", "confidence", "description", "characteristics", "care_tips"]
+            missing = [f for f in required_fields if f not in breed_info]
+            if missing:
+                logger.warning(f"⚠️  Missing fields in response: {missing}")
+            
+            logger.info(f"✅ JSON parsed successfully for breed: {breed_name}")
+            print(f"✅ JSON Parsed: {breed_name}")
+            
+        except Exception as e:
+            error_msg = f"Failed to parse LLM response: {str(e)[:150]}"
+            logger.error(f"❌ {error_msg}")
+            logger.error(f"Raw response: {response_text[:500]}")
+            print(f"❌ Parse Error: {error_msg}")
             return {
-                "error": "Failed to parse LLM response as JSON",
-                "breed_name": breed_name,
-                "raw_preview": response_text[:300]
+                "error": error_msg,
+                "breed": breed_name,
+                "raw_preview": response_text[:200]
             }
 
-        # Save to cache (always insert fresh since we set cached=None above)
+        # === CACHE SAVE ===
         try:
-            async with AsyncSessionLocal() as save_db:
+            logger.info(f"💾 Saving breed info to cache...")
+            async with AsyncSessionLocal() as cache_db:
                 new_cache = BreedCache(
                     breed_name=cache_key,
                     breed_info=breed_info,
                     cached_at=datetime.utcnow()
                 )
-                save_db.add(new_cache)
-                await save_db.commit()
+                cache_db.add(new_cache)
+                await cache_db.commit()
                 logger.info(f"✅ Cached breed info for: {breed_name}")
         except Exception as e:
-            logger.warning(
-                f"Cache save failed for {breed_name} "
-                f"({type(e).__name__}): {e} — continuing anyway"
-            )
+            logger.warning(f"⚠️  Cache save failed: {type(e).__name__}: {str(e)[:100]}, continuing anyway...")
 
         return breed_info
-
-
-async def stream_breed_info(breed_name: str, confidence: float):
-    """
-    Stream breed information from LLM as Server-Sent Events.
-    
-    Args:
-        breed_name: Name of the cattle breed
-        confidence: Detection confidence (0-1)
-        
-    Yields:
-        str: SSE formatted data chunks
-    """
-    prompt = USER_PROMPT_TEMPLATE.format(
-        breed_name=breed_name,
-        confidence=int(confidence * 100)
-    )
-    
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream(
-                "POST",
-                f"{settings.OLLAMA_BASE_URL}/api/generate",
-                json={
-                    "model": settings.OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "system": SYSTEM_PROMPT,
-                    "stream": True,
-                    "options": {
-                        "num_ctx": 1024,
-                        "num_predict": 600,
-                        "temperature": 0.3
-                    }
-                }
-            ) as response:
-                response.raise_for_status()
-                
-                async for line in response.aiter_lines():
-                    if line:
-                        data = json.loads(line)
-                        chunk = data.get("response", "")
-                        if chunk:
-                            yield f"data: {chunk}\n\n"
-                        
-                        # Signal completion
-                        if data.get("done", False):
-                            yield f"data: [DONE]\n\n"
-                            logger.info(f"✅ Stream complete for breed: {breed_name}")
-                            break
-                            
-    except Exception as e:
-        logger.error(
-            f"Stream error for {breed_name}: {type(e).__name__}: {e}"
-        )
-        yield f"data: {{'error': '{str(e)}'}}\n\n"
 

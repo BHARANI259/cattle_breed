@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["LLM"])
 @router.post("/breed-info", response_model=BreedInfoResponse)
 async def fetch_breed_info(request: BreedInfoRequest):
     """
-    Fetch breed information from Ollama LLM (with cache).
+    Fetch breed information from LLM (with cache).
     Optionally saves result to the predictions table if
     prediction_id is provided.
     """
@@ -54,7 +54,7 @@ async def fetch_breed_info(request: BreedInfoRequest):
                     .where(Prediction.id == request.prediction_id)
                     .values(
                         breed_info=result,
-                        llm_model_used=settings.OLLAMA_MODEL
+                        llm_model_used=settings.MODEL_NAME
                     )
                 )
                 await db.commit()
@@ -64,7 +64,7 @@ async def fetch_breed_info(request: BreedInfoRequest):
 
     return {
         "breed_info": result,
-        "model_used": settings.OLLAMA_MODEL,
+        "model_used": settings.MODEL_NAME,
         "from_cache": False   # llm_service handles real cache flag
     }
 
@@ -105,4 +105,5 @@ async def clear_breed_cache(breed_name: str):
         await db.delete(row)
         await db.commit()
     return {"message": f"Cache cleared for '{breed_name}'"}
+
 

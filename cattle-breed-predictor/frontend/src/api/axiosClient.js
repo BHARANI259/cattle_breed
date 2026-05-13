@@ -6,7 +6,8 @@ const axiosClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 300000 // 5 minutes for LLM calls
 })
 
 // Request interceptor
@@ -26,9 +27,55 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
   response => response,
   error => {
-    const message = error.response?.data?.detail || error.message || 'An error occurred'
-    console.error('[API Error]', message)
-    return Promise.reject(new Error(message))
+    // Extract detailed error information
+    let message = 'An error occurred'
+    
+    // Handle backend error response
+    if (error.response?.data) {
+      const data = error.response.data
+      
+      // Handle FastAPI HTTPException with detail as dict
+      if (typeof data.detail === 'object' && data.detail !== null) {
+        message = data.detail.reason || data.detail.message || JSON.stringify(data.detail)
+      }
+      // Handle FastAPI HTTPException with detail as string
+      else if (typeof data.detail === 'string') {
+        message = data.detail
+      }
+      // Handle other error structures
+      else if (data.message) {
+        message = data.message
+      }
+      else if (data.error) {
+        message = data.error
+      }
+    }
+    // Handle network/timeout errors
+    else if (error.code === 'ECONNABORTED') {
+      message = 'Request timeout - the server is taking too long to respond. Please try again.'
+    }
+    // Handle connection errors
+    else if (!error.response) {
+      message = `Connection failed: ${error.message || 'Unable to connect to server'}`
+    }
+    // Standard error message
+    else if (error.message) {
+      message = error.message
+    }
+    
+    console.error('[API Error]', {
+      status: error.response?.status,
+      message,
+      data: error.response?.data,
+      originalError: error.message
+    })
+    
+    // Pass the error with preserved response for handlers
+    const enhancedError = new Error(message)
+    enhancedError.response = error.response
+    enhancedError.code = error.code
+    
+    return Promise.reject(enhancedError)
   }
 )
 

@@ -13,8 +13,9 @@ function BreedInfoCard({ breedInfo, isLoading, onRefresh }) {
       </div>
     )
   }
+  if(!breedInfo) return null;
 
-  if (!breedInfo || breedInfo.error) {
+  if (breedInfo.error) {
     return (
       <div className="card mt-8 fade-in-up border border-red-700/50 bg-red-900/20">
         <div className="flex gap-3">
